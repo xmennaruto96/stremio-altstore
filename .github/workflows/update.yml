@@ -158,22 +158,29 @@ jobs:
         if: failure()
         run: |
           echo "::error::Updater failed. Check the logs."
+      
       - name: Publish GitHub Release for newest build
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          read VER BUILD URL < <(python3 - <<'EOF'
+          read VER BUILD IOS_URL TV_URL < <(python3 - <<'EOF'
           import json
-          a = json.load(open("stremio-ios.json"))["apps"][0]
-          print(a["version"], a["versions"][0]["buildVersion"], a["downloadURL"])
+          def newest(f):
+              a = json.load(open(f))["apps"][0]
+              return a["versions"][0]
+          i = newest("stremio-ios.json"); t = newest("stremio-tvos.json")
+          print(i["version"], i["buildVersion"], i["downloadURL"], t["downloadURL"])
           EOF
           )
           TAG="v${VER}b${BUILD}"
           if ! gh release view "$TAG" >/dev/null 2>&1; then
-            curl -fsSL "$URL" -o stremio_iOS.ipa
-            gh release create "$TAG" stremio_iOS.ipa --title "Stremio $VER (build $BUILD)" \
-              --notes "$(python3 -c 'import json;print(json.load(open("stremio-ios.json"))["apps"][0]["versionDescription"])')"
+            curl -fsSL "$IOS_URL" -o stremio_iOS_iPadOS.ipa
+            curl -fsSL "$TV_URL"  -o stremio_tvOS.ipa
+            python3 -c 'import json;print(json.load(open("stremio-ios.json"))["apps"][0]["versionDescription"])' > notes.txt
+            gh release create "$TAG" stremio_iOS_iPadOS.ipa stremio_tvOS.ipa \
+              --title "Stremio $VER (build $BUILD)" \
+              --notes-file notes.txt
           fi
-        env:
-          GH_TOKEN: ${{ github.token }}
 
   canary:
     name: CDN health canary
