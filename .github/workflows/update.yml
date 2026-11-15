@@ -158,6 +158,22 @@ jobs:
         if: failure()
         run: |
           echo "::error::Updater failed. Check the logs."
+      - name: Publish GitHub Release for newest build
+        run: |
+          read VER BUILD URL < <(python3 - <<'EOF'
+          import json
+          a = json.load(open("stremio-ios.json"))["apps"][0]
+          print(a["version"], a["versions"][0]["buildVersion"], a["downloadURL"])
+          EOF
+          )
+          TAG="v${VER}b${BUILD}"
+          if ! gh release view "$TAG" >/dev/null 2>&1; then
+            curl -fsSL "$URL" -o stremio_iOS.ipa
+            gh release create "$TAG" stremio_iOS.ipa --title "Stremio $VER (build $BUILD)" \
+              --notes "$(python3 -c 'import json;print(json.load(open("stremio-ios.json"))["apps"][0]["versionDescription"])')"
+          fi
+        env:
+          GH_TOKEN: ${{ github.token }}
 
   canary:
     name: CDN health canary
@@ -211,19 +227,3 @@ jobs:
           gh issue create \
             --title "[CDN-HEALTH] Stremio CDN check failed — source may be serving dead downloads" \
             --body-file body.md
-      - name: Publish GitHub Release for newest build
-        run: |
-          read VER BUILD URL < <(python3 - <<'EOF'
-          import json
-          a = json.load(open("stremio-ios.json"))["apps"][0]
-          print(a["version"], a["versions"][0]["buildVersion"], a["downloadURL"])
-          EOF
-          )
-          TAG="v${VER}b${BUILD}"
-          if ! gh release view "$TAG" >/dev/null 2>&1; then
-            curl -fsSL "$URL" -o stremio_iOS.ipa
-            gh release create "$TAG" stremio_iOS.ipa --title "Stremio $VER (build $BUILD)" \
-              --notes "$(python3 -c 'import json;print(json.load(open("stremio-ios.json"))["apps"][0]["versionDescription"])')"
-          fi
-        env:
-          GH_TOKEN: ${{ github.token }}
